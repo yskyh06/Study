@@ -1,18 +1,31 @@
 #include <Arduino.h>
 
-// put function declarations here:
-int myFunction(int, int);
+unsigned long previousTime = 0;
+int colorIndex = 0;
 
-void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+void setup()
+{
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
-}
+void loop()
+{
+    unsigned long currentTime = millis();
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+    if(currentTime - previousTime >= 1000){
+        previousTime = currentTime;
+
+        if (colorIndex == 0)
+            neopixelWrite(RGB_BUILTIN, 255, 0, 0);
+        else if (colorIndex == 1)
+            neopixelWrite(RGB_BUILTIN, 0, 255, 0);
+        else if (colorIndex == 2)
+            neopixelWrite(RGB_BUILTIN, 0, 0, 255);
+        else
+            neopixelWrite(RGB_BUILTIN, 0, 0, 0);
+
+        colorIndex++;
+
+        if (colorIndex > 3)
+            colorIndex = 0;
+    }
 }
