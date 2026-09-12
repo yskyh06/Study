@@ -1,41 +1,16 @@
-## Day 5 - LED State Management with Arrays & Structs
+## Day 7 - Command Parsing with C-Style Strings
 
 ### What I Learned
 
-- RGB 색상을 `struct`로 관리
-- 밝기 단계를 배열로 관리
-- `colorIndex`, `brightnessIndex`를 이용한 상태 전환
-- 짧게 누르기 / 길게 누르기 동작 분리
-- LED 출력 로직을 함수로 분리
-- Polling 방식과 Interrupt 방식의 사용 기준
-- 불필요한 interrupt 사용을 피하는 이유
+- `String` 기반 명령어 파싱
+- `indexOf()`와 `substring()`을 이용한 명령어/인자 분리
+- 고정 길이 `char buffer[]`
+- C 문자열의 종료 문자 `'\0'`
+- 버퍼 인덱스 관리
+- `strtok()`을 이용한 토큰 분리
+- `strcmp()`을 이용한 문자열 비교
+- `atoi()`를 이용한 문자열 → 정수 변환
+- `char*`와 `*charPointer`의 차이
+- C 스타일 문자열이 메모리에서 어떻게 표현되는지 이해
 
----
-
-### Managing Colors with a Struct
-
-기존에는 RGB 색상을 `if / else if` 안에서 직접 지정했지만,
-이번에는 색상 데이터를 구조체로 묶어서 관리했다.
-
-### Poling vs Interrput
-Poling이 유리한 경우
-1. 사용자가 버튼을 누르는 경우
-2. 동작이 심하면 몇 초정도 느려도 되는 경우
-3. 이 동작의 지연이 다음 함수에 영향을 안주는 경우
-
-Interrupt가 유리한 경우
-1. 버튼 입력을 놓치면 안되는 경우
-2. 아주 빠른 센서 입력값을 잡아야 하는 경우
-3. 저전력 모드에서 이벤트 발생시에 CPU를 깨워야 하는 경우
-
-
-```cpp
-struct Color
-{
-    int r;
-    int g;
-    int b;
-};
-
-
-
+- 자세한 내용을 코드 주석으로 정리함.
