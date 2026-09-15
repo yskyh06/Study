@@ -2,13 +2,150 @@
 #include <cstring>
 #include <cstdlib>
 
-char buffer[64];
+const int BUFFER_SIZE = 64;
+
+char buffer[BUFFER_SIZE];
 int bufferIndex = 0;
+
+int brightness = 50;
+
+enum SystemState
+{
+    IDLE,
+    LED_ON,
+    LED_OFF,
+    ERROR_STATE
+};
+
+SystemState state = IDLE;
+
+void applyLED()
+{
+    if (state == LED_ON)
+    {
+        neopixelWrite(RGB_BUILTIN, brightness, 0, 0);
+    }
+    else
+    {
+        neopixelWrite(RGB_BUILTIN, 0, 0, 0);
+    }
+}
+
+void printStatus()
+{
+    Serial.print("State: ");
+
+    switch (state)
+    {
+        case IDLE:
+            Serial.println("IDLE");
+            break;
+
+        case LED_ON:
+            Serial.println("LED_ON");
+            break;
+
+        case LED_OFF:
+            Serial.println("LED_OFF");
+            break;
+
+        case ERROR_STATE:
+            Serial.println("ERROR");
+            break;
+    }
+
+    Serial.print("Brightness: ");
+    Serial.println(brightness);
+}
+
+void processCommand()
+{
+    char* command = strtok(buffer, " ");
+    char* argument = strtok(NULL, " ");
+
+    if (command == nullptr)
+        return;
+
+    if (strcmp(command, "on") == 0)
+    {
+        state = LED_ON;
+        applyLED();
+
+        Serial.println("LED ON");
+    }
+
+    else if (strcmp(command, "off") == 0)
+    {
+        state = LED_OFF;
+        applyLED();
+
+        Serial.println("LED OFF");
+    }
+
+    else if (strcmp(command, "status") == 0)
+    {
+        printStatus();
+    }
+
+    else if (strcmp(command, "brightness") == 0)
+    {
+        if (argument == nullptr)
+        {
+            Serial.println("ERROR: brightness value required");
+            state = ERROR_STATE;
+            return;
+        }
+
+        char* endPtr;
+        
+        //strtol은 수를 안전하게 받을 때 사용함
+        //만약 입력값이 brightness 10이라고 하면 value에는 10이 저장되고, endptr에는 null문자(문자열의 마지막)이 저장됨
+        //하지만 123dfd라는 이상한 값이 들어오면 endptr에는 a의 주소가 찍히게 됨
+        long value = strtol(argument, &endPtr, 10);
+
+
+        //그래서 endptr이 null인지 아닌지 판별하여 value값이 수인지 아닌지 판별함.
+        if (*endPtr != '\0')
+        {
+            Serial.println("ERROR: invalid number");
+            state = ERROR_STATE;
+            return;
+        }
+
+        if (value < 0 || value > 255)
+        {
+            Serial.println("ERROR: brightness must be 0~255");
+            state = ERROR_STATE;
+            return;
+        }
+
+        brightness = value;
+
+        if (state == LED_ON)
+        {
+            applyLED();
+        }
+
+        Serial.print("Brightness changed: ");
+        Serial.println(brightness);
+    }
+
+    else
+    {
+        Serial.println("ERROR: unknown command");
+        state = ERROR_STATE;
+    }
+}
 
 void setup()
 {
     Serial.begin(115200);
-    Serial.println("Enter command:");
+
+    Serial.println("Commands:");
+    Serial.println("on");
+    Serial.println("off");
+    Serial.println("brightness <0~255>");
+    Serial.println("status");
 }
 
 void loop()
@@ -20,43 +157,22 @@ void loop()
         if (c == '\n')
         {
             buffer[bufferIndex] = '\0';
-            
-            //만약 명령어(buffer)가 brigthness 50이라면
-            //strtok 함수는 buffer에서 " "가 첫번째로 나온 인덱스의 값을 "\0"으로 바꿈. 이후에 "b"인덱스를 가르키게 됨. 즉 그 문자가 들어있는 인덱스의 주소를 반환 그래서 포인터 변수로 받는거임
-            //만약에 brightness 50이라는 명령어가 필요하다면 이 명령어를 복사하고 진행해야 함.
-            char* command = strtok(buffer, " ");
-            //왜 buffer가 아니라 NULL을 넣었냐고 하면, strtok는 내부적으로 본인이 어디까지 읽었는지 알고 있음. 그래서 첫번째 호출에서 "brightness "까지 처리했으므로 그 다음 인덱스인 50부터 시작함.
-            //입력 변수가 여러개라면 첫번째만 (변수, " ")라고 하고, 그 이후로는 (NULL, " ")만 써줘도 계속 인식 할 수 있음.
-            //토큰이 없다면 nullptr 반환
-            char* argument = strtok(NULL, " ");
-            //그래서 이 조건문을 써줘야 함. 입력 변수가 없다면 command 값이 없으므로 이 조건을 만족시키지 못함. 그래서 nullptr로 검사함.
-            if (command != nullptr)
-            {
-                Serial.print("Command: ");
-                Serial.println(command);
-            }
 
-            if (argument != nullptr)
-            {
-                //strcmp는 두 문자열이 같은지 판별, 만약에 같으면 0을 반환.
-                //command가 포인터형이므로 한번에 비교하기에는 이 명령어가 편리함.
-                if (strcmp(command, "brightness") == 0 && argument != nullptr)
-                {
-                    int value = atoi(argument);
-
-                    Serial.print("Brightness value: ");
-                    Serial.println(value);
-                }
-            }
+            processCommand();
 
             bufferIndex = 0;
         }
-        else
+        else if (c != '\r')
         {
-            //왜 크기가 64인데 bufferIndex는 63까지만 가능? : 마지막에는 널포인터 넣어야 해서
-            if (bufferIndex < sizeof(buffer) - 1)
+            if (bufferIndex < BUFFER_SIZE - 1)
             {
                 buffer[bufferIndex++] = c;
+            }
+            else
+            {
+                Serial.println("ERROR: command too long");
+                bufferIndex = 0;
+                state = ERROR_STATE;
             }
         }
     }
