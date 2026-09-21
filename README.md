@@ -1,12 +1,22 @@
-## Day 10 - UART Packet Protocol
+## Day 11 - I2C Communication and Register Access
 
 ### What I Learned
 
-오늘은 UART 통신에서 단순 문자열 명령이 아니라,
-정해진 형식의 **binary packet**을 만들어 데이터를 송수신하는 방법을 학습함.
+오늘은 I2C 통신의 기본 구조와
+센서 내부 Register를 읽고 쓰는 방법을 학습했다.
 
-체크섬 확인 방식은 아직 배우지 못하여 단순히 덧셈으로 판별한 것임.
+주요 내용:
 
-특히 파이썬으로 통신 프로그램을 구축한게 신기했음.
+- SDA / SCL
+- Master / Slave
+- Device Address
+- ACK / NACK
+- Register Read / Write
+- Repeated START
+- High / Low byte
+- 16-bit 데이터 조립
+- uint8_t / uint16_t / int16_t
 
-동작 방법은 주석을 참고바람
+-자세한 내용은 주석 참고
+---
+

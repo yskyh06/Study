@@ -1,95 +1,131 @@
 #include <Arduino.h>
+#include <Wire.h>
 
-//데이터가 바이트 단위로 들어오는 형식을 enum으로 지정
-enum ParseState{
-    WAIT_HEADER,
-    READ_COMMAND,
-    READ_VALUE,
-    READ_CHECKSUM
-};
+const uint8_t DEVICE_ADDRESS = 0x40;
 
-ParseState parseState = WAIT_HEADER;
+// 1바이트 레지스터 쓰기
+// uint8_t unsigned인 8비트(1바이트) 자료형
+void writeRegister(uint8_t deviceAddress,
+                   uint8_t regAddress,
+                   uint8_t value)
+{
+    //디바이스 주소로 전송을 시작
+    Wire.beginTransmission(deviceAddress);
 
-uint8_t command = 0;
-uint8_t value = 0;
+    Wire.write(regAddress);   // Register 주소
+    Wire.write(value);        // Register에 쓸 값
 
-//command의 값에 따라서 결정
-void processPacket(){
-    if(command == 0x01){
-        neopixelWrite(RGB_BUILTIN, value, 0, 0);
+    //전송 종료 후 error에 리턴값 저장.
+    uint8_t error = Wire.endTransmission();
 
-        Serial.print("Brightness: ");
-        Serial.println(value);
+    if (error == 0)
+    {
+        Serial.println("Write success");
     }
-
-    else if (command == 0x02){
-        neopixelWrite(RGB_BUILTIN, 0, 0, 0);
-
-        Serial.println("LED OFF");
-    }
-
     else
     {
-        Serial.println("Unknown command");
-    }   
-}
-
-void setup(){
-    Serial.begin(115200);
-    Serial.println("UART Packet Parser Start");
-}
-
-void loop(){
-    while(Serial.available() > 0){
-        //파이썬에서 순서대로 보내준 데이터를 바이트 단위로 하나씩 꺼내서 씀
-        uint8_t data = Serial.read();
-
-        //그래서 별도의 구분 작업 없이 switch로 나눠서 실행
-        switch(parseState){
-            //1단계 헤더 파일을 기다림
-            //헤다가 중요한 이유 : 계속 보드에는 쓰레기 값이 들어오는데, 그 중에서 우리가 보낸 값을 찾으려면 그 시작 점을 찾아야 하기 때문
-            //시작 점 이후로 몇개의 데이터는 우리가 보낸 데이터이기 떄문임. (이를 동기화라고 함)
-            case WAIT_HEADER:
-                //데이터가 0xAA라면 그 다음 단계로 진행. 알아서 data에는 커맨드가 들어감
-                if(data == 0xAA){
-                    parseState = READ_COMMAND;
-                }
-
-                break;
-            
-                //2단계 명령어 바이트를 기다림
-            case READ_COMMAND:
-                command = data;
-                parseState = READ_VALUE;
-                break;
-
-            //3단계
-            case READ_VALUE:
-                value = data;
-                parseState = READ_CHECKSUM;
-                break;
-
-            //4단계 체크섬 생성 및 확인
-            case READ_CHECKSUM:
-            {   
-                //체크섬은 정상 패킷인지 아닌지 확인하기 위해 쓰임
-                uint8_t receivedChecksum = data;
-                uint8_t calculatedChecksum = command + value;
-
-                if (receivedChecksum == calculatedChecksum){
-                    Serial.println("Valid packet");
-
-                    processPacket();
-                }
-
-                else{
-                    Serial.println("Checksum error");
-                }
-
-                parseState = WAIT_HEADER;
-
-                break;
-            }
-        }
+        Serial.print("Write error: ");
+        Serial.println(error);
     }
+}
+
+
+// 1바이트 레지스터 읽기
+uint8_t readRegister(uint8_t deviceAddress,
+                     uint8_t regAddress)
+{
+    // 디바이스 주소와 통신 시작 후에 읽고 싶은 Register 주소 지정
+    Wire.beginTransmission(deviceAddress);
+    Wire.write(regAddress);
+
+    // STOP 없이 이어서 Read 수행. 쓰기와 달리 한번에 끝나지 않고 어느 레지스터를 읽을 지 write 후 read하기 때문에 작성
+    uint8_t error = Wire.endTransmission(false);
+
+    if (error != 0)
+    {
+        Serial.print("Register select error: ");
+        Serial.println(error);
+
+        return 0;
+    }
+
+    // 1바이트 요청. received에는 실제로 몇 바이트를 받아왔는지 작성이 되는 것임. 우리가 1 바이트를 보냈으니 정상적으로 작동하는거면 recived = 1이 되어 있어야 하는 것임.
+    uint8_t received =
+        Wire.requestFrom(deviceAddress, (uint8_t)1);
+
+    if (received == 1 && Wire.available())
+    {
+        //1바이트로 받은 값이 실제로 어떤 값인지 알고 싶으면 read 작성
+        return Wire.read();
+    }
+
+    Serial.println("Read error");
+
+    return 0;
+}
+
+
+// 연속된 High / Low Register를 읽어
+// 하나의 16-bit 값으로 조립
+int16_t readRegister16(uint8_t deviceAddress,
+                       uint8_t highRegister)
+{
+    uint8_t high =
+        readRegister(deviceAddress, highRegister);
+
+    uint8_t low =
+        readRegister(deviceAddress, highRegister + 1);
+
+    int16_t value =
+        (int16_t)(((uint16_t)high << 8) | low);
+
+    return value;
+}
+
+
+void setup()
+{
+    Serial.begin(115200);
+
+    Wire.begin();
+
+    delay(1000);
+
+    Serial.println("I2C Register Example");
+
+    // 예시:
+    // 0x01 Register에 0x05 저장
+    writeRegister(
+        DEVICE_ADDRESS,
+        0x01,
+        0x05
+    );
+
+    // 예시:
+    // 0x00 Register에서 1 byte 읽기
+    uint8_t deviceID =
+        readRegister(
+            DEVICE_ADDRESS,
+            0x00
+        );
+
+    Serial.print("Device ID: 0x");
+    Serial.println(deviceID, HEX);
+
+    // 예시:
+    // 0x10 = High byte
+    // 0x11 = Low byte
+    int16_t sensorValue =
+        readRegister16(
+            DEVICE_ADDRESS,
+            0x10
+        );
+
+    Serial.print("Sensor Value: ");
+    Serial.println(sensorValue);
+}
+
+
+void loop()
+{
 }
